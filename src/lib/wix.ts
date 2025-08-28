@@ -1,11 +1,37 @@
 import { createClient, OAuthStrategy } from "@wix/sdk";
 import { items } from "@wix/data";
+import { cookies } from "next/headers";
+import { members, authorization } from "@wix/members";
 
-const client = createClient({
-    modules: { items },
+export function getServerClient() {
+  const cookieStore = cookies();
+  const sessionCookie = cookieStore.get("session");
+  const session = sessionCookie ? sessionCookie.value : undefined;
+
+  return createClient({
+    modules: { items, members, authorization },
     auth: OAuthStrategy({
-        clientId: process.env.WIX_CLIENT_ID!,
+      clientId: process.env.NEXT_PUBLIC_WIX_CLIENT_ID!,
+      tokens: session ? JSON.parse(session) : undefined,
     }),
-});
+  });
+}
 
-export default client;
+export async function getMember() {
+  const client = getServerClient();
+
+  if (!client.auth.loggedIn()) {
+    return undefined;
+  }
+
+  const { member } = await client.members.getCurrentMember();
+
+  return member
+    ? {
+        id: member._id,
+        loginEmail: member.loginEmail,
+        nickname: member.profile?.nickname,
+        slug: member.profile?.slug,
+      }
+    : undefined;
+}
